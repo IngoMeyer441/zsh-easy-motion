@@ -81,19 +81,26 @@ function _easy-motion () {
 
     function _easy-motion-choose-target {
         local target_index
+        local new_cursor
         read -k -s target_key || return 5
         target_index=${TARGET_KEYS[(i)${target_key}]}
         (( ${target_index} <= ${#TARGET_KEYS} )) || return 6
         (( ${target_index} <= ${#motion_indices})) || return 7
         # Move the cursor to the chosen target
-        CURSOR="${motion_indices[${target_index}]}"
+        new_cursor="${motion_indices[${target_index}]}"
         if (( ${_EASY_MOTION_VIOPP} )); then
             case $motion in
-                e|E|ge|gE|f|t|s)
-                    (( CURSOR++ ))
+                e|E|ge|gE|f|t)
+                    (( new_cursor++ ))
+                    ;;
+                s)
+                    if (( ${new_cursor} > ${CURSOR} )); then
+                        (( new_cursor++ ))
+                    fi
                     ;;
             esac
         fi
+        CURSOR="${new_cursor}"
         zle -R
         return 0
     }
