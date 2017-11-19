@@ -30,10 +30,10 @@ function _easy-motion () {
     function _easy-motion-motion-to-indices {
         # Get the indices for the selected motion + optional argument
         if [[ -z "${motion_argument}" ]]; then
-            motion_indices=($("${_EASY_MOTION_ROOT_DIR}/motion2indices.py" "${CURSOR}" "${motion}" "${BUFFER}")) || \
+            motion_indices=($("${_EASY_MOTION_ROOT_DIR}/motion2indices.py" "${CURSOR}" "${motion}" "${BUFFER}" 2>/dev/null)) || \
                 return 3
         else
-            motion_indices=($("${_EASY_MOTION_ROOT_DIR}/motion2indices.py" "${CURSOR}" "${motion}" "${motion_argument}" "${BUFFER}")) || \
+            motion_indices=($("${_EASY_MOTION_ROOT_DIR}/motion2indices.py" "${CURSOR}" "${motion}" "${motion_argument}" "${BUFFER}" 2>/dev/null)) || \
                 return 4
         fi
         return 0
@@ -74,6 +74,7 @@ function _easy-motion () {
         BUFFER="${saved_buffer}"
     }
 
+    saved_buffer="${BUFFER}"
     _easy-motion-read-motion && \
     _easy-motion-motion-to-indices && \
     _easy-motion-display-targets && \
