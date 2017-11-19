@@ -9,7 +9,17 @@ function _easy-motion () {
     local -a motion_indices
     local target_key
     local saved_buffer
+    local saved_predisplay
+    local saved_postdisplay
+    local -a saved_region_highlight
     local ret
+
+    function _easy-motion-save-state {
+        saved_buffer="${BUFFER}"
+        saved_predisplay="${PREDISPLAY}"
+        saved_postdisplay="${POSTDISPLAY}"
+        saved_region_highlight=("${region_highlight[@]}")
+    }
 
     function _easy-motion-read-motion {
         local second_motion_character
@@ -42,7 +52,8 @@ function _easy-motion () {
     function _easy-motion-display-targets {
         local i motion_index target_key
 
-        saved_buffer="${BUFFER}"
+        PREDISPLAY=""
+        POSTDISPLAY=""
         region_highlight=( "0 $#BUFFER fg=black,bold" )
         i=1
         while [[ "${i}" -le "${#motion_indices}" && "${i}" -le "${#TARGET_KEYS}" ]]; do
@@ -69,18 +80,20 @@ function _easy-motion () {
         return 0
     }
 
-    function _easy-motion-clean-highlight {
-        region_highlight=()
+    function _easy-motion-restore-state {
         BUFFER="${saved_buffer}"
+        PREDISPLAY="${saved_predisplay}"
+        POSTDISPLAY="${saved_postdisplay}"
+        region_highlight=("${saved_region_highlight[@]}")
     }
 
-    saved_buffer="${BUFFER}"
+    _easy-motion-save-state && \
     _easy-motion-read-motion && \
     _easy-motion-motion-to-indices && \
     _easy-motion-display-targets && \
     _easy-motion-choose-target
     ret="$?"
-    _easy-motion-clean-highlight
+    _easy-motion-restore-state
 
     return "${ret}"
 }
