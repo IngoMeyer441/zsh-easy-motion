@@ -105,7 +105,11 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         indices_offset = cursor_position + 1
     elif motion in BACKWARD_MOTIONS:
         text = text[:cursor_position]
-    matches = list(re.finditer(MOTION_TO_REGEX[motion].format(motion_argument), text))
+    if motion_argument is None:
+        regex = MOTION_TO_REGEX[motion]
+    else:
+        regex = MOTION_TO_REGEX[motion].format(re.escape(motion_argument))
+    matches = list(re.finditer(regex, text))
     if motion in BACKWARD_MOTIONS:
         matches = list(reversed(matches))
     indices = [match_obj.start(1) + indices_offset for match_obj in matches]
