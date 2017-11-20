@@ -4,7 +4,7 @@ _EASY_MOTION_ROOT_DIR="${0:h}"
 _EASY_MOTION_VIOPP=0
 _EASY_MOTION_TIMESTAMP_CMD="python -c 'import time; print(int(time.time() * 1000))'"
 
-function _easy-motion () {
+function vi-easy-motion () {
     local -a MOTIONS_WITH_ARGUMENT=( "f" "F" "t" "T" "s" )
     local -a TARGET_KEYS=( "a" "s" "d" "g" "h" "k" "l" "q" "w" "e" "r" "t" "y" "u" \
         "i" "o" "p" "z" "x" "c" "v" "b" "n" "m" "f" "j" ";" )
@@ -139,4 +139,4 @@ zle -N vi-delete-wrapper
 bindkey -M vicmd c vi-change-wrapper
 bindkey -M vicmd d vi-delete-wrapper
 
-zle -N _easy-motion
+zle -N vi-easy-motion

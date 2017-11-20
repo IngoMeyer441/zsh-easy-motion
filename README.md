@@ -28,7 +28,7 @@ If you are running a recent Linux distribution or macOS, an appropriate Python v
 2.  Bind a prefix key for easy-motion in `vicmd` mode, for example the `space` key:
 
     ```zsh
-    bindkey -M vicmd ' ' _easy-motion
+    bindkey -M vicmd ' ' vi-easy-motion
     ```
 
 ### Manual
@@ -38,7 +38,7 @@ If you are running a recent Linux distribution or macOS, an appropriate Python v
 2.  Bind a prefix key for easy-motion in `vicmd` mode, for example the `space` key:
 
     ```zsh
-    bindkey -M vicmd ' ' _easy-motion
+    bindkey -M vicmd ' ' vi-easy-motion
     ```
 
 
