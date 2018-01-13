@@ -126,12 +126,12 @@ function vi-easy-motion () {
 
 function vi-change-wrapper () {
     _EASY_MOTION_VIOPP=1
-    eval _EASY_MOTION_VIOPP_TIMESTAMP="$(python -c 'import time; print(int(time.time() * 1000))')"
+    _EASY_MOTION_VIOPP_TIMESTAMP="$(python -c 'import time; print(int(time.time() * 1000))')"
     zle vi-change
 }
 function vi-delete-wrapper () {
     _EASY_MOTION_VIOPP=1
-    eval _EASY_MOTION_VIOPP_TIMESTAMP="$(python -c 'import time; print(int(time.time() * 1000))')"
+    _EASY_MOTION_VIOPP_TIMESTAMP="$(python -c 'import time; print(int(time.time() * 1000))')"
     zle vi-delete
 }
 zle -N vi-change-wrapper
