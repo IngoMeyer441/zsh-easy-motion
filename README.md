@@ -5,7 +5,7 @@
 This plugin brings Vim's [easy-motion](https://github.com/easymotion/vim-easymotion) plugin to zsh. It is heavily
 inspired by [zce.zsh](https://github.com/hchbaw/zce.zsh). Unfortunately, zce.zsh only supports the seek operation of
 easy-motion so I have started my own implementation that adds much more easy-motion movements. Currently, the following
-motions are supported: `b`, `B`, `w`, `W`, `e`, `E`, `ge`, `gE`, `f`, `F`, `t`, `T`.
+motions are supported: `b`, `B`, `w`, `W`, `e`, `E`, `ge`, `gE`, `f`, `F`, `t`, `T`, `c` (camelCase).
 
 
 ## Requirements
