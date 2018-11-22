@@ -65,7 +65,7 @@ function vi-easy-motion () {
 
         PREDISPLAY=""
         POSTDISPLAY=""
-        region_highlight=( "0 $#BUFFER fg=black,bold" )
+        region_highlight=( "0 $#BUFFER fg=8,bold" )
         i=1
         while [[ "${i}" -le "${#motion_indices}" && "${i}" -le "${#TARGET_KEYS}" ]]; do
             motion_index="${motion_indices[${i}]}"
