@@ -1,3 +1,7 @@
+# Configuration values
+EASY_MOTION_DIM="fg=8,bold"
+EASY_MOTION_HIGHLIGHT="fg=196,bold"
+
 _EASY_MOTION_ROOT_DIR="${0:h}"
 # in a script, we cannot query if zsh is in vi operator pending mode
 # -> keep track of it
@@ -65,12 +69,12 @@ function vi-easy-motion () {
 
         PREDISPLAY=""
         POSTDISPLAY=""
-        region_highlight=( "0 $#BUFFER fg=8,bold" )
+        region_highlight=( "0 $#BUFFER ${EASY_MOTION_DIM}" )
         i=1
         while [[ "${i}" -le "${#motion_indices}" && "${i}" -le "${#TARGET_KEYS}" ]]; do
             motion_index="${motion_indices[${i}]}"
             target_key="${TARGET_KEYS[${i}]}"
-            region_highlight+=( "${motion_index} $(( ${motion_index} + 1 )) fg=196,bold" )
+            region_highlight+=( "${motion_index} $(( ${motion_index} + 1 )) ${EASY_MOTION_HIGHLIGHT}" )
             BUFFER[${motion_index}+1]="${target_key}"
             (( i++ ))
         done

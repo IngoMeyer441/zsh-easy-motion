@@ -47,3 +47,18 @@ If you are running a recent Linux distribution or macOS, an appropriate Python v
 Press the configured prefix key (for example `space`) in vi command mode and enter a vi motion command. Possible jump
 targets are highlighted by red letters. Press one of the highlighted letters to jump to the corresponding position
 directly.
+
+
+## Color configuration
+
+The color of dimmed and highlighted text can be configured by setting two environment variables. These are the default
+settings:
+
+```zsh
+EASY_MOTION_DIM="fg=8,bold"
+EASY_MOTION_HIGHLIGHT="fg=196,bold"
+```
+
+Visit the [zsh docs](http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Character-Highlighting) for a
+description of possible highlights and http://www.calmar.ws/vim/256-xterm-24bit-rgb-color-chart.html for a listing
+of possible color codes.
