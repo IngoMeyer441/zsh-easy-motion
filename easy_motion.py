@@ -6,12 +6,12 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import os
 import re
 import sys
+import termios
 
 PY2 = sys.version_info.major < 3  # is needed for correct mypy checking
-
-from itertools import chain
 
 if PY2:
     from itertools import izip_longest as zip_longest
@@ -27,6 +27,7 @@ try:
         Dict,
         IO,
         Iterable,
+        Iterator,
         List,
         Optional,
         Text,
@@ -59,6 +60,10 @@ MOTION_TO_REGEX = {
 }
 
 
+class MissingTargetKeysError(Exception):
+    pass
+
+
 class MissingCursorPositionError(Exception):
     pass
 
@@ -67,11 +72,7 @@ class InvalidCursorPositionError(Exception):
     pass
 
 
-class MissingGroupLengthError(Exception):
-    pass
-
-
-class InvalidGroupLengthError(Exception):
+class MissingTextError(Exception):
     pass
 
 
@@ -79,56 +80,40 @@ class InvalidMotionError(Exception):
     pass
 
 
-class MissingMotionError(Exception):
+class InvalidTargetError(Exception):
     pass
 
 
-class MissingMotionArgumentError(Exception):
-    pass
-
-
-class MissingTextError(Exception):
-    pass
+class ReadState(object):
+    MOTION = 0
+    MOTION_ARGUMENT = 1
+    TARGET = 2
+    HIGHLIGHT = 3
 
 
 def parse_arguments():
-    # type: () -> Tuple[int, int, Text, Text, Optional[Text]]
+    # type: () -> Tuple[int, Text, Text]
     if PY2:
         argv = [arg.decode("utf-8") for arg in sys.argv]
     else:
         argv = list(sys.argv)
     # Remove program name from argument vector
     argv.pop(0)
+    # Extract target keys
+    if not argv:
+        raise MissingTargetKeysError("No target keys given.")
+    target_keys = argv.pop(0)
     # Extract cursor position
     if not argv:
         raise MissingCursorPositionError("No cursor position given.")
     if not argv[0].isdigit():
         raise InvalidCursorPositionError('The cursor position "{}" is not a number.'.format(argv[0]))
     cursor_position = int(argv.pop(0))
-    # Extract group length
-    if not argv:
-        raise MissingGroupLengthError("No group length given.")
-    if not argv[0].isdigit():
-        raise InvalidGroupLengthError('The group length "{}" is not a number.'.format(argv[0]))
-    group_length = int(argv.pop(0))
-    # Extract motion
-    if not argv:
-        raise MissingMotionError("No motion given.")
-    motion = argv.pop(0)
-    if motion not in VALID_MOTIONS:
-        raise InvalidMotionError('"{}" is not a valid motion argument.'.format(motion))
-    # Extract motion argument (if needed)
-    if motion in MOTIONS_WITH_ARGUMENT:
-        if not argv:
-            raise MissingMotionArgumentError('"{}" needs an argument that is missing.'.format(motion))
-        motion_argument = argv.pop(0)  # type: Optional[Text]
-    else:
-        motion_argument = None
     # Extract text
     if not argv:
         raise MissingTextError("No text given.")
     text = " ".join(argv)
-    return cursor_position, group_length, text, motion, motion_argument
+    return cursor_position, target_keys, text
 
 
 def motion_to_indices(cursor_position, text, motion, motion_argument):
@@ -147,15 +132,17 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         )
     else:
         is_forward_motion = motion in FORWARD_MOTIONS or motion.endswith(">")
+        if motion.endswith(">") or motion.endswith("<"):
+            motion = motion[:-1]
         if is_forward_motion:
             text = text[cursor_position + 1 :]
             indices_offset = cursor_position + 1
         else:
             text = text[:cursor_position]
         if motion_argument is None:
-            regex = re.compile(MOTION_TO_REGEX[motion[:1]])
+            regex = re.compile(MOTION_TO_REGEX[motion])
         else:
-            regex = re.compile(MOTION_TO_REGEX[motion[:1]].format(re.escape(motion_argument)))
+            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)))
         matches = regex.finditer(text)
         if not is_forward_motion:
             matches = reversed(list(matches))
@@ -169,10 +156,10 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
 
 
 def group_indices(indices, group_length):
-    # type: (Iterable[int], int) -> Iterable[Any]
+    # type: (Iterable[int], int) -> List[Any]
 
     def group(indices, group_length):
-        # type: (Iterable[int], int) -> Union[Iterable[Any], int]
+        # type: (Iterable[int], int) -> Union[List[Any], int]
         def find_required_slot_sizes(num_indices, group_length):
             # type: (int, int) -> List[int]
             if num_indices <= group_length:
@@ -196,47 +183,132 @@ def group_indices(indices, group_length):
         slot_start_indices = [0]
         for slot_size in slot_sizes[:-1]:
             slot_start_indices.append(slot_start_indices[-1] + slot_size)
-        grouped_indices = (
+        grouped_indices = [
             group(indices_as_tuple[slot_start_index : slot_start_index + slot_size], group_length)
             for slot_start_index, slot_size in zip(slot_start_indices, slot_sizes)
-        )
+        ]
         return grouped_indices
 
     grouped_indices = group(indices, group_length)
     if isinstance(grouped_indices, int):
-        return (grouped_indices,)
+        return [grouped_indices]
     else:
         return grouped_indices
 
 
-def print_grouped_indices(grouped_indices, recursion_depth=0):
-    # type: (Iterable[Any], int) -> None
-    print(recursion_depth * ">", end="")
-    for group_or_index in grouped_indices:
+def print_highlight_regions(grouped_indices, target_keys):
+    # type: (Iterable[Any], Text) -> None
+    def find_leaves(group_or_index):
+        # type: (Union[Iterable[Any], int]) -> Iterator[int]
         if isinstance(group_or_index, int):
-            print("{:d} ".format(group_or_index), end="")
+            yield group_or_index
         else:
-            print()
-            print_grouped_indices(group_or_index, recursion_depth + 1)
+            for sub_group_or_index in group_or_index:
+                for leave in find_leaves(sub_group_or_index):
+                    yield leave
+
+    print("highlight_start")
+    sys.stdout.flush()
+    for target_key, group_or_index in zip(target_keys, grouped_indices):
+        if isinstance(group_or_index, int):
+            print("s {:d} {}".format(group_or_index, target_key))
+            sys.stdout.flush()
+        else:
+            for preview_key, sub_group_or_index in zip(target_keys, group_or_index):
+                for leave in find_leaves(sub_group_or_index):
+                    print("p1 {:d} {}".format(leave, target_key))
+                    print("p2 {:d} {}".format(leave + 1, preview_key))
+                    sys.stdout.flush()
+    print("highlight_end")
+    sys.stdout.flush()
+
+
+def print_jump_target(found_index, motion):
+    # type: (int, Text) -> None
+    print("jump")
+    print("{:d} {}".format(found_index, motion))
+    sys.stdout.flush()
+
+
+def handle_user_input(cursor_position, target_keys, text):
+    # type: (int, Text, Text) -> None
+    fd = sys.stdin.fileno()
+
+    def setup_terminal():
+        # type: () -> List[Union[int, List[bytes]]]
+        old_term_settings = termios.tcgetattr(fd)
+        new_term_settings = termios.tcgetattr(fd)
+        new_term_settings[3] = (
+            cast(int, new_term_settings[3]) & ~termios.ICANON & ~termios.ECHO
+        )  # unbuffered and no echo
+        termios.tcsetattr(fd, termios.TCSAFLUSH, new_term_settings)
+        return old_term_settings
+
+    def reset_terminal(old_term_settings):
+        # type: (List[Union[int, List[bytes]]]) -> None
+        termios.tcsetattr(fd, termios.TCSAFLUSH, old_term_settings)
+
+    old_term_settings = setup_terminal()
+
+    read_state = ReadState.MOTION
+    motion = None
+    motion_argument = None
+    target = None
+    grouped_indices = None
+    try:
+        while True:
+            if read_state != ReadState.HIGHLIGHT:
+                next_key = os.read(fd, 80)[:1].decode("ascii")  # blocks until any amount of bytes is available
+            if read_state == ReadState.MOTION:
+                motion = next_key
+                if motion not in VALID_MOTIONS:
+                    raise InvalidMotionError('The key "{}" is no valid motion.'.format(motion))
+                if motion in MOTIONS_WITH_ARGUMENT:
+                    read_state = ReadState.MOTION_ARGUMENT
+                else:
+                    read_state = ReadState.HIGHLIGHT
+            elif read_state == ReadState.MOTION_ARGUMENT:
+                motion_argument = next_key
+                read_state = ReadState.HIGHLIGHT
+            elif read_state == ReadState.TARGET:
+                target = next_key
+                if target not in target_keys:
+                    raise InvalidTargetError('The key "{}" is no valid target.'.format(target))
+                read_state = ReadState.HIGHLIGHT
+            elif read_state == ReadState.HIGHLIGHT:
+                assert motion is not None
+                if grouped_indices is None:
+                    indices = motion_to_indices(cursor_position, text, motion, motion_argument)
+                    grouped_indices = group_indices(indices, len(target_keys))
+                else:
+                    try:
+                        # pylint: disable=unsubscriptable-object
+                        grouped_indices = grouped_indices[target_keys.index(target)]
+                    except IndexError:
+                        raise InvalidTargetError('The key "{}" is no valid target.'.format(target))
+                if not isinstance(grouped_indices, int):
+                    print_highlight_regions(grouped_indices, target_keys)
+                    read_state = ReadState.TARGET
+                else:
+                    # The user selected a leave target, we can break now
+                    print_jump_target(grouped_indices, motion)
+                    break
+    finally:
+        reset_terminal(old_term_settings)
 
 
 def main():
     # type: () -> None
     try:
-        cursor_position, group_length, text, motion, motion_argument = parse_arguments()
-        indices = motion_to_indices(cursor_position, text, motion, motion_argument)
-        grouped_indices = group_indices(indices, group_length)
-        print_grouped_indices(grouped_indices)
-        print(" ".join(Text(index) for index in indices))
+        cursor_position, target_keys, text = parse_arguments()
+        handle_user_input(cursor_position, target_keys, text)
     except (
+        MissingTargetKeysError,
         MissingCursorPositionError,
         InvalidCursorPositionError,
-        MissingGroupLengthError,
-        InvalidGroupLengthError,
-        InvalidMotionError,
-        MissingMotionError,
-        MissingMotionArgumentError,
         MissingTextError,
+        InvalidMotionError,
+        InvalidTargetError,
     ) as e:
         print(e, file=sys.stderr)
         sys.exit(1)
