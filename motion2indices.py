@@ -8,6 +8,7 @@ from __future__ import unicode_literals
 
 import re
 import sys
+from itertools import zip_longest
 
 try:
     from typing import (  # noqa: F401  # pylint: disable=unused-import
@@ -31,8 +32,8 @@ PY2 = sys.version_info.major < 3  # is needed for correct mypy checking
 
 VALID_MOTIONS = frozenset(("b", "B", "ge", "gE", "e", "E", "w", "W", "f", "F", "t", "T", "s", "c"))
 MOTIONS_WITH_ARGUMENT = frozenset(("f", "F", "t", "T", "s"))
-FORWARD_MOTIONS = frozenset(("e", "E", "w", "W", "f", "t"))
-BACKWARD_MOTIONS = frozenset(("b", "B", "ge", "gE", "F", "T"))
+FORWARD_MOTIONS = frozenset(("e", "E", "w", "W", "f", "t", "s", "c"))
+BACKWARD_MOTIONS = frozenset(("b", "B", "ge", "gE", "F", "T", "s", "c"))
 MOTION_TO_REGEX = {
     "b": r"\b(\w)",
     "B": r"(?:^|\s)(\S)",
@@ -112,24 +113,37 @@ def parse_arguments():
 def motion_to_indices(cursor_position, text, motion, motion_argument):
     # type: (int, Text, Text, Optional[Text]) -> Iterable[int]
     indices_offset = 0
-    if motion in FORWARD_MOTIONS:
-        text = text[cursor_position + 1 :]
-        indices_offset = cursor_position + 1
-    elif motion in BACKWARD_MOTIONS:
-        text = text[:cursor_position]
-    if motion_argument is None:
-        regex = re.compile(MOTION_TO_REGEX[motion])
+    if motion in FORWARD_MOTIONS and motion in BACKWARD_MOTIONS:
+        # Split the motion into the forward and backward motion and handle these recursively
+        forward_motion_indices = motion_to_indices(cursor_position, text, motion + ">", motion_argument)
+        backward_motion_indices = motion_to_indices(cursor_position, text, motion + "<", motion_argument)
+        # Create a generator which yields the indices round-robin
+        indices = (
+            index
+            for index_pair in zip_longest(forward_motion_indices, backward_motion_indices)
+            for index in index_pair
+            if index is not None
+        )
     else:
-        regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)))
-    matches = regex.finditer(text)
-    if motion in BACKWARD_MOTIONS:
-        matches = reversed(list(matches))
-    indices = (
-        match_obj.start(i) + indices_offset
-        for match_obj in matches
-        for i in range(1, regex.groups + 1)
-        if match_obj.start(i) >= 0
-    )
+        is_forward_motion = motion in FORWARD_MOTIONS or motion.endswith(">")
+        if is_forward_motion:
+            text = text[cursor_position + 1 :]
+            indices_offset = cursor_position + 1
+        else:
+            text = text[:cursor_position]
+        if motion_argument is None:
+            regex = re.compile(MOTION_TO_REGEX[motion[:1]])
+        else:
+            regex = re.compile(MOTION_TO_REGEX[motion[:1]].format(re.escape(motion_argument)))
+        matches = regex.finditer(text)
+        if not is_forward_motion:
+            matches = reversed(list(matches))
+        indices = (
+            match_obj.start(i) + indices_offset
+            for match_obj in matches
+            for i in range(1, regex.groups + 1)
+            if match_obj.start(i) >= 0
+        )
     return indices
 
 
