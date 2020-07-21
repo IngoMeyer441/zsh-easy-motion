@@ -29,10 +29,10 @@ except ImportError:
 
 PY2 = sys.version_info.major < 3  # is needed for correct mypy checking
 
-VALID_MOTIONS = ("b", "B", "ge", "gE", "e", "E", "w", "W", "f", "F", "t", "T", "s", "c")
-MOTIONS_WITH_ARGUMENT = ("f", "F", "t", "T", "s")
-FORWARD_MOTIONS = ("e", "E", "w", "W", "f", "t")
-BACKWARD_MOTIONS = ("b", "B", "ge", "gE", "F", "T")
+VALID_MOTIONS = frozenset(("b", "B", "ge", "gE", "e", "E", "w", "W", "f", "F", "t", "T", "s", "c"))
+MOTIONS_WITH_ARGUMENT = frozenset(("f", "F", "t", "T", "s"))
+FORWARD_MOTIONS = frozenset(("e", "E", "w", "W", "f", "t"))
+BACKWARD_MOTIONS = frozenset(("b", "B", "ge", "gE", "F", "T"))
 MOTION_TO_REGEX = {
     "b": r"\b(\w)",
     "B": r"(?:^|\s)(\S)",
@@ -121,15 +121,15 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         regex = re.compile(MOTION_TO_REGEX[motion])
     else:
         regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)))
-    matches = list(regex.finditer(text))
+    matches = regex.finditer(text)
     if motion in BACKWARD_MOTIONS:
-        matches = list(reversed(matches))
-    indices = [
+        matches = reversed(list(matches))
+    indices = (
         match_obj.start(i) + indices_offset
         for match_obj in matches
         for i in range(1, regex.groups + 1)
         if match_obj.start(i) >= 0
-    ]
+    )
     return indices
 
 
