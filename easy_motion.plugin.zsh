@@ -1,6 +1,9 @@
 # Configuration values
-EASY_MOTION_DIM="fg=8,bold"
-EASY_MOTION_HIGHLIGHT="fg=196,bold"
+_EASY_MOTION_DIM_DEFAULT="fg=242"
+_EASY_MOTION_HIGHLIGHT_DEFAULT="fg=196,bold"
+_EASY_MOTION_HIGHLIGHT_2_FIRST_DEFAULT="fg=11,bold"
+_EASY_MOTION_HIGHLIGHT_2_SECOND_DEFAULT="fg=3,bold"
+_EASY_MOTION_TARGET_KEYS_DEFAULT="asdghklqwertyuiopzxcvbnmfj;"
 
 _EASY_MOTION_ROOT_DIR="${0:h}"
 # in a script, we cannot query if zsh is in vi operator pending mode
@@ -10,8 +13,6 @@ _EASY_MOTION_TIMESTAMP_CMD="python -c 'import time; print(int(time.time() * 1000
 
 function vi-easy-motion () {
     local -a MOTIONS_WITH_ARGUMENT=( "f" "F" "t" "T" "s" )
-    local -a TARGET_KEYS=( "a" "s" "d" "g" "h" "k" "l" "q" "w" "e" "r" "t" "y" "u" \
-        "i" "o" "p" "z" "x" "c" "v" "b" "n" "m" "f" "j" ";" )
     local MAX_VIOPP_TIME_DELTA=500
     local motion
     local motion_argument
@@ -22,6 +23,14 @@ function vi-easy-motion () {
     local saved_postdisplay
     local -a saved_region_highlight
     local ret
+
+    function _easy-motion-setup-variables {
+        : "${EASY_MOTION_DIM:=${_EASY_MOTION_DIM_DEFAULT}}"
+        : "${EASY_MOTION_HIGHLIGHT:=${_EASY_MOTION_HIGHLIGHT_DEFAULT}}"
+        : "${EASY_MOTION_HIGHLIGHT_2_FIRST:=${_EASY_MOTION_HIGHLIGHT_2_FIRST_DEFAULT}}"
+        : "${EASY_MOTION_HIGHLIGHT_2_SECOND:=${_EASY_MOTION_HIGHLIGHT_2_SECOND_DEFAULT}}"
+        : "${EASY_MOTION_TARGET_KEYS:=${_EASY_MOTION_TARGET_KEYS_DEFAULT}}"
+    }
 
     function _easy-motion-save-state {
         local current_time
@@ -36,76 +45,75 @@ function vi-easy-motion () {
         fi
     }
 
-    function _easy-motion-read-motion {
-        local second_motion_character
+    function _easy-motion-main {
+        local state line
+        local region_type region_pos region_key
+        local target_index motion
+        declare -A region_type_to_highlight
 
-        read -k -s motion || return 1
-        # 'g' -> second character is needed
-        if [[ "${motion}" == "g" ]]; then
-            read -k -s second_motion_character || return 1
-            motion="${motion}${second_motion_character}"
-        fi
-        # Check if ${motion} needs an additional argument
-        if (( ${MOTIONS_WITH_ARGUMENT[(I)${motion}]} )); then
-            read -k -s motion_argument || return 2
-        fi
-        return 0
-    }
-
-    function _easy-motion-motion-to-indices {
-        # Get the indices for the selected motion + optional argument
-        if [[ -z "${motion_argument}" ]]; then
-            motion_indices=($("${_EASY_MOTION_ROOT_DIR}/motion2indices.py" "${CURSOR}" "${motion}" "${BUFFER}" 2>/dev/null)) || \
-                return 3
-        else
-            motion_indices=($("${_EASY_MOTION_ROOT_DIR}/motion2indices.py" "${CURSOR}" "${motion}" "${motion_argument}" "${BUFFER}" 2>/dev/null)) || \
-                return 4
-        fi
-        return 0
-    }
-
-    function _easy-motion-display-targets {
-        local i motion_index target_key
+        region_type_to_highlight=( \
+            ["s"]="${EASY_MOTION_HIGHLIGHT}" \
+            ["p1"]="${EASY_MOTION_HIGHLIGHT_2_FIRST}" \
+            ["p2"]="${EASY_MOTION_HIGHLIGHT_2_SECOND}" \
+        )
 
         PREDISPLAY=""
         POSTDISPLAY=""
-        region_highlight=( "0 $#BUFFER ${EASY_MOTION_DIM}" )
-        i=1
-        while [[ "${i}" -le "${#motion_indices}" && "${i}" -le "${#TARGET_KEYS}" ]]; do
-            motion_index="${motion_indices[${i}]}"
-            target_key="${TARGET_KEYS[${i}]}"
-            region_highlight+=( "${motion_index} $(( ${motion_index} + 1 )) ${EASY_MOTION_HIGHLIGHT}" )
-            BUFFER[${motion_index}+1]="${target_key}"
-            (( i++ ))
-        done
-        # Force a redisplay of the command line
-        zle -R
-        return 0
-    }
 
-    function _easy-motion-choose-target {
-        local target_index
-        local new_cursor
-        read -k -s target_key || return 5
-        target_index=${TARGET_KEYS[(i)${target_key}]}
-        (( ${target_index} <= ${#TARGET_KEYS} )) || return 6
-        (( ${target_index} <= ${#motion_indices})) || return 7
-        # Move the cursor to the chosen target
-        new_cursor="${motion_indices[${target_index}]}"
-        if (( ${_EASY_MOTION_VIOPP} )); then
-            case $motion in
-                e|E|ge|gE|f|t)
-                    (( new_cursor++ ))
+        state="none"
+        # In bash, "command | while ..." would not work because while runs in a subshell and variables cannot be modified.
+        # But in zsh, the while loop is NOT executed in its own subshell.
+        "${_EASY_MOTION_ROOT_DIR}/easy_motion.py" "${EASY_MOTION_TARGET_KEYS}" "${CURSOR}" "${BUFFER}" </dev/tty 2>/dev/null | \
+        while read -r line; do
+            # >&2 echo "${line}"
+            case "${line}" in
+                highlight_start)
+                    state="highlight"
+                    region_highlight=( "0 $#BUFFER ${EASY_MOTION_DIM}" )
+                    BUFFER="${saved_buffer}"
+                    continue
                     ;;
-                s)
-                    if (( ${new_cursor} > ${CURSOR} )); then
-                        (( new_cursor++ ))
-                    fi
+                highlight_end)
+                    state="none"
+                    # Force a redisplay of the command line
+                    zle -R
+                    continue
+                    ;;
+                jump)
+                    state="jump"
+                    continue
+                    ;;
+                *)
                     ;;
             esac
+            case "${state}" in
+                highlight)
+                    read -r region_type region_pos region_key <<< "${line}"
+                    region_highlight+=( "${region_pos} $(( region_pos + 1 )) ${region_type_to_highlight[${region_type}]}" )
+                    BUFFER[$((region_pos + 1))]="${region_key}"
+                    ;;
+                jump)
+                    read -r target_index motion <<< "${line}"
+                    ;;
+            esac
+        done || return 2
+
+        if [[ -n "${target_index}" ]]; then
+            if (( _EASY_MOTION_VIOPP )); then
+                case "${motion}" in
+                    e|E|ge|gE|f|t)
+                        (( target_index++ ))
+                        ;;
+                    s)
+                        if (( target_index > CURSOR )); then
+                            (( target_index++ ))
+                        fi
+                        ;;
+                esac
+            fi
+            CURSOR="${target_index}"
         fi
-        CURSOR="${new_cursor}"
-        zle -R
+
         return 0
     }
 
@@ -117,13 +125,13 @@ function vi-easy-motion () {
         _EASY_MOTION_VIOPP=0
     }
 
+    _easy-motion-setup-variables && \
     _easy-motion-save-state && \
-    _easy-motion-read-motion && \
-    _easy-motion-motion-to-indices && \
-    _easy-motion-display-targets && \
-    _easy-motion-choose-target
+    _easy-motion-main && \
     ret="$?"
     _easy-motion-restore-state
+    # Force a redisplay of the command line
+    zle -R
 
     return "${ret}"
 }
