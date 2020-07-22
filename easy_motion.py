@@ -38,10 +38,10 @@ except ImportError:
     cast = lambda t, x: x  # type: ignore  # noqa: E731
     Text = unicode if (sys.version_info.major < 3) else str  # type: ignore
 
-VALID_MOTIONS = frozenset(("b", "B", "ge", "gE", "e", "E", "w", "W", "f", "F", "t", "T", "s", "c"))
+VALID_MOTIONS = frozenset(("b", "B", "ge", "gE", "e", "E", "w", "W", "j", "J", "k", "K", "f", "F", "t", "T", "s", "c"))
 MOTIONS_WITH_ARGUMENT = frozenset(("f", "F", "t", "T", "s"))
-FORWARD_MOTIONS = frozenset(("e", "E", "w", "W", "f", "t", "s", "c"))
-BACKWARD_MOTIONS = frozenset(("b", "B", "ge", "gE", "F", "T", "s", "c"))
+FORWARD_MOTIONS = frozenset(("e", "E", "w", "W", "j", "J", "f", "t", "s", "c"))
+BACKWARD_MOTIONS = frozenset(("b", "B", "ge", "gE", "k", "K", "F", "T", "s", "c"))
 MOTION_TO_REGEX = {
     "b": r"\b(\w)",
     "B": r"(?:^|\s)(\S)",
@@ -51,6 +51,10 @@ MOTION_TO_REGEX = {
     "E": r"(\S)(?:\s|$)",
     "w": r"\b(\w)",
     "W": r"\s(\S)",
+    "j": r"^(?:\s*)(\S)",
+    "J": r"(\S)(?:\s*)$",
+    "k": r"^(?:\s*)(\S)",
+    "K": r"(\S)(?:\s*)$",
     "f": r"({})",
     "F": r"({})",
     "t": r"(.){}",
@@ -135,14 +139,25 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         if motion.endswith(">") or motion.endswith("<"):
             motion = motion[:-1]
         if is_forward_motion:
-            text = text[cursor_position + 1 :]
-            indices_offset = cursor_position + 1
+            if motion in ("j", "J"):
+                match_obj = re.match(r"(.*$)", text[cursor_position:], flags=re.MULTILINE)
+                if match_obj:
+                    text = text[cursor_position + match_obj.end(1) :]
+                    indices_offset = cursor_position + match_obj.end(1)
+            else:
+                text = text[cursor_position + 1 :]
+                indices_offset = cursor_position + 1
         else:
-            text = text[:cursor_position]
+            if motion in ("k", "K"):
+                match_obj = re.match(r"(?:.*)(^.*)", text[: cursor_position + 1], flags=re.MULTILINE | re.DOTALL)
+                if match_obj:
+                    text = text[: match_obj.start(1)]
+            else:
+                text = text[:cursor_position]
         if motion_argument is None:
-            regex = re.compile(MOTION_TO_REGEX[motion])
+            regex = re.compile(MOTION_TO_REGEX[motion], flags=re.MULTILINE)
         else:
-            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)))
+            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)), flags=re.MULTILINE)
         matches = regex.finditer(text)
         if not is_forward_motion:
             matches = reversed(list(matches))
