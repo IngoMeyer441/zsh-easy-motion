@@ -107,6 +107,8 @@ def parse_arguments():
     if not argv:
         raise MissingTargetKeysError("No target keys given.")
     target_keys = argv.pop(0)
+    if len(target_keys) < 2:
+        raise MissingTargetKeysError("At least two target keys are needed.")
     # Extract cursor position
     if not argv:
         raise MissingCursorPositionError("No cursor position given.")
