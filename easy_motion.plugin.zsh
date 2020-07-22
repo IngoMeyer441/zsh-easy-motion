@@ -1,9 +1,9 @@
 # Configuration values
-EASY_MOTION_DIM="fg=242"
-EASY_MOTION_HIGHLIGHT="fg=196,bold"
-EASY_MOTION_HIGHLIGHT_2_FIRST="fg=11,bold"
-EASY_MOTION_HIGHLIGHT_2_SECOND="fg=3,bold"
-EASY_MOTION_TARGET_KEYS="asdghklqwertyuiopzxcvbnmfj;"
+_EASY_MOTION_DIM_DEFAULT="fg=242"
+_EASY_MOTION_HIGHLIGHT_DEFAULT="fg=196,bold"
+_EASY_MOTION_HIGHLIGHT_2_FIRST_DEFAULT="fg=11,bold"
+_EASY_MOTION_HIGHLIGHT_2_SECOND_DEFAULT="fg=3,bold"
+_EASY_MOTION_TARGET_KEYS_DEFAULT="asdghklqwertyuiopzxcvbnmfj;"
 
 _EASY_MOTION_ROOT_DIR="${0:h}"
 # in a script, we cannot query if zsh is in vi operator pending mode
@@ -23,6 +23,14 @@ function vi-easy-motion () {
     local saved_postdisplay
     local -a saved_region_highlight
     local ret
+
+    function _easy-motion-setup-variables {
+        : "${EASY_MOTION_DIM:=${_EASY_MOTION_DIM_DEFAULT}}"
+        : "${EASY_MOTION_HIGHLIGHT:=${_EASY_MOTION_HIGHLIGHT_DEFAULT}}"
+        : "${EASY_MOTION_HIGHLIGHT_2_FIRST:=${_EASY_MOTION_HIGHLIGHT_2_FIRST_DEFAULT}}"
+        : "${EASY_MOTION_HIGHLIGHT_2_SECOND:=${_EASY_MOTION_HIGHLIGHT_2_SECOND_DEFAULT}}"
+        : "${EASY_MOTION_TARGET_KEYS:=${_EASY_MOTION_TARGET_KEYS_DEFAULT}}"
+    }
 
     function _easy-motion-save-state {
         local current_time
@@ -117,6 +125,7 @@ function vi-easy-motion () {
         _EASY_MOTION_VIOPP=0
     }
 
+    _easy-motion-setup-variables && \
     _easy-motion-save-state && \
     _easy-motion-main && \
     ret="$?"
