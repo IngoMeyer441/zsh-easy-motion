@@ -173,41 +173,41 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
     return indices
 
 
-def group_indices(indices, group_length):
+def group_indices(indices, group_count):
     # type: (Iterable[int], int) -> List[Any]
 
-    def group(indices, group_length):
+    def group(indices, group_count):
         # type: (Iterable[int], int) -> Union[List[Any], int]
-        def find_required_slot_sizes(num_indices, group_length):
+        def find_required_group_sizes(num_indices, group_count):
             # type: (int, int) -> List[int]
-            if num_indices <= group_length:
-                slot_sizes = num_indices * [1]
+            if num_indices <= group_count:
+                group_sizes = num_indices * [1]
             else:
-                slot_sizes = group_length * [1]
-                next_increase_slot = group_length - 1
-                while sum(slot_sizes) < num_indices:
-                    slot_sizes[next_increase_slot] *= group_length
-                    next_increase_slot = (next_increase_slot - 1 + group_length) % group_length
-                previous_increase_slot = (next_increase_slot + 1) % group_length
-                # Always fill rear slots first
-                slot_sizes[previous_increase_slot] -= sum(slot_sizes) - num_indices
-            return slot_sizes
+                group_sizes = group_count * [1]
+                next_increase_group_index = group_count - 1
+                while sum(group_sizes) < num_indices:
+                    group_sizes[next_increase_group_index] *= group_count
+                    next_increase_group_index = (next_increase_group_index - 1 + group_count) % group_count
+                previous_increase_group_index = (next_increase_group_index + 1) % group_count
+                # Always fill rear groups first
+                group_sizes[previous_increase_group_index] -= sum(group_sizes) - num_indices
+            return group_sizes
 
         indices_as_tuple = tuple(indices)
         num_indices = len(indices_as_tuple)
         if num_indices == 1:
             return indices_as_tuple[0]
-        slot_sizes = find_required_slot_sizes(num_indices, group_length)
-        slot_start_indices = [0]
-        for slot_size in slot_sizes[:-1]:
-            slot_start_indices.append(slot_start_indices[-1] + slot_size)
+        group_sizes = find_required_group_sizes(num_indices, group_count)
+        group_start_indices = [0]
+        for group_size in group_sizes[:-1]:
+            group_start_indices.append(group_start_indices[-1] + group_size)
         grouped_indices = [
-            group(indices_as_tuple[slot_start_index : slot_start_index + slot_size], group_length)
-            for slot_start_index, slot_size in zip(slot_start_indices, slot_sizes)
+            group(indices_as_tuple[group_start_index : group_start_index + group_size], group_count)
+            for group_start_index, group_size in zip(group_start_indices, group_sizes)
         ]
         return grouped_indices
 
-    grouped_indices = group(indices, group_length)
+    grouped_indices = group(indices, group_count)
     if isinstance(grouped_indices, int):
         return [grouped_indices]
     else:
