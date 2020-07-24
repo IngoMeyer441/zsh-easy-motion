@@ -30,13 +30,14 @@ try:
         Iterator,
         List,
         Optional,
-        Text,
         Tuple,
         Union,
     )
 except ImportError:
     cast = lambda t, x: x  # type: ignore  # noqa: E731
-    Text = unicode if (sys.version_info.major < 3) else str  # type: ignore
+
+if PY2:
+    str = unicode
 
 VALID_MOTIONS = frozenset(("b", "B", "ge", "gE", "e", "E", "w", "W", "j", "J", "k", "K", "f", "F", "t", "T", "s", "c"))
 MOTIONS_WITH_ARGUMENT = frozenset(("f", "F", "t", "T", "s"))
@@ -96,7 +97,7 @@ class ReadState(object):
 
 
 def parse_arguments():
-    # type: () -> Tuple[int, Text, Text]
+    # type: () -> Tuple[int, str, str]
     if PY2:
         argv = [arg.decode("utf-8") for arg in sys.argv]
     else:
@@ -123,7 +124,7 @@ def parse_arguments():
 
 
 def motion_to_indices(cursor_position, text, motion, motion_argument):
-    # type: (int, Text, Text, Optional[Text]) -> Iterable[int]
+    # type: (int, str, str, Optional[str]) -> Iterable[int]
     indices_offset = 0
     if motion in FORWARD_MOTIONS and motion in BACKWARD_MOTIONS:
         # Split the motion into the forward and backward motion and handle these recursively
@@ -214,7 +215,7 @@ def group_indices(indices, group_length):
 
 
 def print_highlight_regions(grouped_indices, target_keys):
-    # type: (Iterable[Any], Text) -> None
+    # type: (Iterable[Any], str) -> None
     def find_leaves(group_or_index):
         # type: (Union[Iterable[Any], int]) -> Iterator[int]
         if isinstance(group_or_index, int):
@@ -241,14 +242,14 @@ def print_highlight_regions(grouped_indices, target_keys):
 
 
 def print_jump_target(found_index, motion):
-    # type: (int, Text) -> None
+    # type: (int, str) -> None
     print("jump")
     print("{:d} {}".format(found_index, motion))
     sys.stdout.flush()
 
 
 def handle_user_input(cursor_position, target_keys, text):
-    # type: (int, Text, Text) -> None
+    # type: (int, str, str) -> None
     fd = sys.stdin.fileno()
 
     def setup_terminal():
@@ -277,13 +278,17 @@ def handle_user_input(cursor_position, target_keys, text):
             if read_state != ReadState.HIGHLIGHT:
                 next_key = os.read(fd, 80)[:1].decode("ascii")  # blocks until any amount of bytes is available
             if read_state == ReadState.MOTION:
-                motion = next_key
-                if motion not in VALID_MOTIONS:
-                    raise InvalidMotionError('The key "{}" is no valid motion.'.format(motion))
-                if motion in MOTIONS_WITH_ARGUMENT:
-                    read_state = ReadState.MOTION_ARGUMENT
+                if motion is None:
+                    motion = next_key
                 else:
-                    read_state = ReadState.HIGHLIGHT
+                    motion += next_key
+                if motion != "g":  # `g` always needs a second key press
+                    if motion not in VALID_MOTIONS:
+                        raise InvalidMotionError('The key "{}" is no valid motion.'.format(motion))
+                    if motion in MOTIONS_WITH_ARGUMENT:
+                        read_state = ReadState.MOTION_ARGUMENT
+                    else:
+                        read_state = ReadState.HIGHLIGHT
             elif read_state == ReadState.MOTION_ARGUMENT:
                 motion_argument = next_key
                 read_state = ReadState.HIGHLIGHT
