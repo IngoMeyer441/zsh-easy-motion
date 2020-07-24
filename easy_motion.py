@@ -278,13 +278,17 @@ def handle_user_input(cursor_position, target_keys, text):
             if read_state != ReadState.HIGHLIGHT:
                 next_key = os.read(fd, 80)[:1].decode("ascii")  # blocks until any amount of bytes is available
             if read_state == ReadState.MOTION:
-                motion = next_key
-                if motion not in VALID_MOTIONS:
-                    raise InvalidMotionError('The key "{}" is no valid motion.'.format(motion))
-                if motion in MOTIONS_WITH_ARGUMENT:
-                    read_state = ReadState.MOTION_ARGUMENT
+                if motion is None:
+                    motion = next_key
                 else:
-                    read_state = ReadState.HIGHLIGHT
+                    motion += next_key
+                if motion != "g":  # `g` always needs a second key press
+                    if motion not in VALID_MOTIONS:
+                        raise InvalidMotionError('The key "{}" is no valid motion.'.format(motion))
+                    if motion in MOTIONS_WITH_ARGUMENT:
+                        read_state = ReadState.MOTION_ARGUMENT
+                    else:
+                        read_state = ReadState.HIGHLIGHT
             elif read_state == ReadState.MOTION_ARGUMENT:
                 motion_argument = next_key
                 read_state = ReadState.HIGHLIGHT
