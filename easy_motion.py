@@ -43,6 +43,9 @@ VALID_MOTIONS = frozenset(("b", "B", "ge", "gE", "e", "E", "w", "W", "j", "J", "
 MOTIONS_WITH_ARGUMENT = frozenset(("f", "F", "t", "T", "s"))
 FORWARD_MOTIONS = frozenset(("e", "E", "w", "W", "j", "J", "f", "t", "s", "c"))
 BACKWARD_MOTIONS = frozenset(("b", "B", "ge", "gE", "k", "K", "F", "T", "s", "c"))
+LINEWISE_MOTIONS = frozenset(("j", "J", "k", "K"))
+VIOPP_INCREMENT_CURSOR_MOTIONS = frozenset(("e", "E", "ge", "gE", "f", "t"))
+VIOPP_INCREMENT_CURSOR_ON_FORWARD_MOTIONS = frozenset(("s"))
 MOTION_TO_REGEX = {
     "b": r"\b(\w)",
     "B": r"(?:^|\s)(\S)",
@@ -77,6 +80,14 @@ class InvalidCursorPositionError(Exception):
     pass
 
 
+class MissingVioppFlagError(Exception):
+    pass
+
+
+class InvalidVioppFlagError(Exception):
+    pass
+
+
 class MissingTextError(Exception):
     pass
 
@@ -96,8 +107,17 @@ class ReadState(object):
     HIGHLIGHT = 3
 
 
+def str2bool(bool_text):
+    # type: (str) -> bool
+    if bool_text.lower() in ("true", "on", "yes", "1"):
+        return True
+    elif bool_text.lower() in ("false", "off", "no", "0"):
+        return False
+    raise ValueError
+
+
 def parse_arguments():
-    # type: () -> Tuple[int, str, str]
+    # type: () -> Tuple[int, bool, str, str]
     if PY2:
         argv = [arg.decode("utf-8") for arg in sys.argv]
     else:
@@ -116,11 +136,52 @@ def parse_arguments():
     if not argv[0].isdigit():
         raise InvalidCursorPositionError('The cursor position "{}" is not a number.'.format(argv[0]))
     cursor_position = int(argv.pop(0))
+    # Extract viopp flag
+    if not argv:
+        raise MissingVioppFlagError("No viopp flag given.")
+    try:
+        is_in_viopp = str2bool(argv.pop(0))
+    except ValueError:
+        raise InvalidVioppFlagError('The viopp flag "{}" is not a valid boolean flag.'.format(argv[0]))
     # Extract text
     if not argv:
         raise MissingTextError("No text given.")
     text = " ".join(argv)
-    return cursor_position, target_keys, text
+    return cursor_position, is_in_viopp, target_keys, text
+
+
+def find_first_line_end(cursor_position, text):
+    # type: (int, str) -> int
+    first_line_end = re.match(r".*($)", text[cursor_position:], flags=re.MULTILINE)
+    assert first_line_end is not None
+    return first_line_end.end(1)
+
+
+def find_latest_line_start(cursor_position, text):
+    # type: (int, str) -> int
+    latest_line_start = re.match(r"(?:.*)(^)", text[: cursor_position + 1], flags=re.MULTILINE | re.DOTALL)
+    assert latest_line_start is not None
+    return latest_line_start.start(1)
+
+
+def adjust_text(cursor_position, text, motion):
+    # type: (int, str, str) -> Tuple[str, int]
+    indices_offset = 0
+    if motion in FORWARD_MOTIONS:
+        if motion in LINEWISE_MOTIONS:
+            first_line_end_index = find_first_line_end(cursor_position, text)
+            text = text[cursor_position + first_line_end_index :]
+            indices_offset = cursor_position + first_line_end_index
+        else:
+            text = text[cursor_position + 1 :]
+            indices_offset = cursor_position + 1
+    else:
+        if motion in LINEWISE_MOTIONS:
+            latest_line_start_index = find_latest_line_start(cursor_position, text)
+            text = text[:latest_line_start_index]
+        else:
+            text = text[:cursor_position]
+    return text, indices_offset
 
 
 def motion_to_indices(cursor_position, text, motion, motion_argument):
@@ -141,22 +202,7 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         is_forward_motion = motion in FORWARD_MOTIONS or motion.endswith(">")
         if motion.endswith(">") or motion.endswith("<"):
             motion = motion[:-1]
-        if is_forward_motion:
-            if motion in ("j", "J"):
-                match_obj = re.match(r"(.*$)", text[cursor_position:], flags=re.MULTILINE)
-                if match_obj:
-                    text = text[cursor_position + match_obj.end(1) :]
-                    indices_offset = cursor_position + match_obj.end(1)
-            else:
-                text = text[cursor_position + 1 :]
-                indices_offset = cursor_position + 1
-        else:
-            if motion in ("k", "K"):
-                match_obj = re.match(r"(?:.*)(^.*)", text[: cursor_position + 1], flags=re.MULTILINE | re.DOTALL)
-                if match_obj:
-                    text = text[: match_obj.start(1)]
-            else:
-                text = text[:cursor_position]
+        text, indices_offset = adjust_text(cursor_position, text, motion)
         if motion_argument is None:
             regex = re.compile(MOTION_TO_REGEX[motion], flags=re.MULTILINE)
         else:
@@ -241,15 +287,45 @@ def print_highlight_regions(grouped_indices, target_keys):
     sys.stdout.flush()
 
 
-def print_jump_target(found_index, motion):
-    # type: (int, str) -> None
+def adjust_jump_target(cursor_position, found_index, is_in_viopp, text, motion):
+    # type: (int, int, bool, str, str) -> Tuple[int, Optional[int]]
+    def extend_to_line_border(lower_index, upper_index):
+        # type: (int, int) -> Tuple[int, int]
+        latest_line_start = re.match(r"(?:.*)(^)", text[: lower_index + 1], flags=re.MULTILINE | re.DOTALL)
+        assert latest_line_start is not None
+        lower_index = latest_line_start.start(1) - 1
+        first_line_end = re.match(r".*($)", text[upper_index:], flags=re.MULTILINE)
+        assert first_line_end is not None
+        upper_index += first_line_end.end(1)
+        return (lower_index, upper_index)
+
+    mark = None
+    if is_in_viopp:
+        if motion in VIOPP_INCREMENT_CURSOR_MOTIONS or (
+            motion in VIOPP_INCREMENT_CURSOR_ON_FORWARD_MOTIONS and found_index > cursor_position
+        ):
+            found_index += 1
+        elif motion in LINEWISE_MOTIONS:
+            if found_index > cursor_position:
+                mark, found_index = extend_to_line_border(cursor_position, found_index)
+            else:
+                found_index, mark = extend_to_line_border(found_index, cursor_position)
+
+    return (found_index, mark)
+
+
+def print_jump_target(found_index, mark=None):
+    # type: (int, Optional[int]) -> None
     print("jump")
-    print("{:d} {}".format(found_index, motion))
+    if mark is None:
+        print("{:d}".format(found_index))
+    else:
+        print("{:d} {:d}".format(found_index, mark))
     sys.stdout.flush()
 
 
-def handle_user_input(cursor_position, target_keys, text):
-    # type: (int, str, str) -> None
+def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
+    # type: (int, bool, str, str) -> None
     fd = sys.stdin.fileno()
 
     def setup_terminal():
@@ -313,7 +389,8 @@ def handle_user_input(cursor_position, target_keys, text):
                     read_state = ReadState.TARGET
                 else:
                     # The user selected a leave target, we can break now
-                    print_jump_target(grouped_indices, motion)
+                    found_index, mark = adjust_jump_target(cursor_position, grouped_indices, is_in_viopp, text, motion)
+                    print_jump_target(found_index, mark)
                     break
     finally:
         reset_terminal(old_term_settings)
@@ -322,8 +399,8 @@ def handle_user_input(cursor_position, target_keys, text):
 def main():
     # type: () -> None
     try:
-        cursor_position, target_keys, text = parse_arguments()
-        handle_user_input(cursor_position, target_keys, text)
+        cursor_position, is_in_viopp, target_keys, text = parse_arguments()
+        handle_user_input(cursor_position, is_in_viopp, target_keys, text)
     except (
         MissingTargetKeysError,
         MissingCursorPositionError,
