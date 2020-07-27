@@ -49,7 +49,7 @@ Press the configured prefix key (for example `space`) in vi command mode and ent
 targets are highlighted by red letters. Press one of the highlighted letters to jump to the corresponding position
 directly.
 
-This plugin also works in operator-pending mode (but `j`/`J` and `k`/`K` motions can not be used currently).
+This plugin also works in operator-pending mode.
 
 ### Grouping
 
