@@ -7,6 +7,8 @@ _EASY_MOTION_TARGET_KEYS_DEFAULT="asdghklqwertyuiopzxcvbnmfj;"
 
 _EASY_MOTION_ROOT_DIR="${0:h}"
 
+_EASY_MOTION_EXTRA_MOTION=""
+
 function vi-easy-motion () {
     local saved_buffer
     local saved_predisplay
@@ -77,7 +79,7 @@ function vi-easy-motion () {
                     BUFFER[$((region_pos + 1))]="${region_key}"
                     ;;
                 jump)
-                    read -r target_index mark <<< "${line}"
+                    read -r target_index mark _EASY_MOTION_EXTRA_MOTION <<< "${line}"
                     if [[ -n "${target_index}" ]]; then
                         CURSOR="${target_index}"
                     fi
@@ -108,4 +110,34 @@ function vi-easy-motion () {
     return "${ret}"
 }
 
+# Wrap vi operators to be able to move the cursor
+# after an operator was executed
+function vi-change vi-delete vi-down-case vi-oper-swap-case vi-up-case vi-yank () {
+    local ret
+
+    zle ".${WIDGET}"
+    ret=$?
+
+    if [[ -n "${_EASY_MOTION_EXTRA_MOTION}" ]]; then
+        # Do not repeat the follong motion widgets
+        unset NUMERIC
+        case "${_EASY_MOTION_EXTRA_MOTION}" in
+            W)
+                zle vi-forward-blank-word
+                ;;
+            *)
+                ;;
+        esac
+        _EASY_MOTION_EXTRA_MOTION=""
+    fi
+
+    return "${ret}"
+}
+
 zle -N vi-easy-motion
+zle -N vi-change
+zle -N vi-delete
+zle -N vi-down-case
+zle -N vi-oper-swap-case
+zle -N vi-up-case
+zle -N vi-yank
