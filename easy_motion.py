@@ -411,6 +411,8 @@ def main():
         MissingTargetKeysError,
         MissingCursorPositionError,
         InvalidCursorPositionError,
+        MissingVioppFlagError,
+        InvalidVioppFlagError,
         MissingTextError,
         InvalidMotionError,
         InvalidTargetError,
