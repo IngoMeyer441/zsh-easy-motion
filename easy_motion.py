@@ -288,7 +288,7 @@ def print_highlight_regions(grouped_indices, target_keys):
 
 
 def adjust_jump_target(cursor_position, found_index, is_in_viopp, text, motion):
-    # type: (int, int, bool, str, str) -> Tuple[int, Optional[int]]
+    # type: (int, int, bool, str, str) -> Tuple[int, Optional[int], Optional[str]]
     def extend_to_line_border(lower_index, upper_index):
         # type: (int, int) -> Tuple[int, int]
         latest_line_start = re.match(r"(?:.*)(^)", text[: lower_index + 1], flags=re.MULTILINE | re.DOTALL)
@@ -300,6 +300,7 @@ def adjust_jump_target(cursor_position, found_index, is_in_viopp, text, motion):
         return (lower_index, upper_index)
 
     mark = None
+    extra_motion = None
     if is_in_viopp:
         if motion in VIOPP_INCREMENT_CURSOR_MOTIONS or (
             motion in VIOPP_INCREMENT_CURSOR_ON_FORWARD_MOTIONS and found_index > cursor_position
@@ -310,17 +311,20 @@ def adjust_jump_target(cursor_position, found_index, is_in_viopp, text, motion):
                 mark, found_index = extend_to_line_border(cursor_position, found_index)
             else:
                 found_index, mark = extend_to_line_border(found_index, cursor_position)
+            extra_motion = "W"
 
-    return (found_index, mark)
+    return (found_index, mark, extra_motion)
 
 
-def print_jump_target(found_index, mark=None):
-    # type: (int, Optional[int]) -> None
+def print_jump_target(found_index, mark=None, extra_motion=None):
+    # type: (int, Optional[int], Optional[str]) -> None
     print("jump")
     if mark is None:
         print("{:d}".format(found_index))
-    else:
+    elif extra_motion is None:
         print("{:d} {:d}".format(found_index, mark))
+    else:
+        print("{:d} {:d} {}".format(found_index, mark, extra_motion))
     sys.stdout.flush()
 
 
@@ -389,8 +393,10 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
                     read_state = ReadState.TARGET
                 else:
                     # The user selected a leave target, we can break now
-                    found_index, mark = adjust_jump_target(cursor_position, grouped_indices, is_in_viopp, text, motion)
-                    print_jump_target(found_index, mark)
+                    found_index, mark, extra_motion = adjust_jump_target(
+                        cursor_position, grouped_indices, is_in_viopp, text, motion
+                    )
+                    print_jump_target(found_index, mark, extra_motion)
                     break
     finally:
         reset_terminal(old_term_settings)
