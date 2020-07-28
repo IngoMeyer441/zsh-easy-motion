@@ -164,10 +164,10 @@ def find_latest_line_start(cursor_position, text):
     return latest_line_start.start(1)
 
 
-def adjust_text(cursor_position, text, motion):
-    # type: (int, str, str) -> Tuple[str, int]
+def adjust_text(cursor_position, text, is_forward_motion, motion):
+    # type: (int, str, bool, str) -> Tuple[str, int]
     indices_offset = 0
-    if motion in FORWARD_MOTIONS:
+    if is_forward_motion:
         if motion in LINEWISE_MOTIONS:
             first_line_end_index = find_first_line_end(cursor_position, text)
             text = text[cursor_position + first_line_end_index :]
@@ -202,7 +202,7 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         is_forward_motion = motion in FORWARD_MOTIONS or motion.endswith(">")
         if motion.endswith(">") or motion.endswith("<"):
             motion = motion[:-1]
-        text, indices_offset = adjust_text(cursor_position, text, motion)
+        text, indices_offset = adjust_text(cursor_position, text, is_forward_motion, motion)
         if motion_argument is None:
             regex = re.compile(MOTION_TO_REGEX[motion], flags=re.MULTILINE)
         else:
@@ -411,6 +411,8 @@ def main():
         MissingTargetKeysError,
         MissingCursorPositionError,
         InvalidCursorPositionError,
+        MissingVioppFlagError,
+        InvalidVioppFlagError,
         MissingTextError,
         InvalidMotionError,
         InvalidTargetError,
