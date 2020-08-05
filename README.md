@@ -2,7 +2,7 @@
 
 ## Demo
 
-![zsh-easy-motion demo](https://raw.githubusercontent.com/IngoHeimbach/zsh-easy-motion/master/demo.svg)
+![zsh-easy-motion demo](https://raw.githubusercontent.com/IngoMeyer441/zsh-easy-motion/master/demo.svg)
 
 ## Introduction
 
@@ -25,7 +25,7 @@ If you are running a recent Linux distribution or macOS, an appropriate Python v
 
 ### Using zplug
 
-1. Add `zplug "IngoHeimbach/zsh-easy-motion"` to your `.zshrc`.
+1. Add `zplug "IngoMeyer441/zsh-easy-motion"` to your `.zshrc`.
 
 2. Bind a prefix key for easy-motion in `vicmd` mode, for example the `space` key:
 
