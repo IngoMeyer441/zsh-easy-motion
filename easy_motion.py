@@ -339,12 +339,12 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
         new_term_settings[3] = (
             cast(int, new_term_settings[3]) & ~termios.ICANON & ~termios.ECHO
         )  # unbuffered and no echo
-        termios.tcsetattr(fd, termios.TCSAFLUSH, new_term_settings)
+        termios.tcsetattr(fd, termios.TCSADRAIN, new_term_settings)
         return old_term_settings
 
     def reset_terminal(old_term_settings):
         # type: (List[Union[int, List[bytes]]]) -> None
-        termios.tcsetattr(fd, termios.TCSAFLUSH, old_term_settings)
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_term_settings)
 
     old_term_settings = setup_terminal()
 
