@@ -388,9 +388,9 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
                         grouped_indices = grouped_indices[target_keys.index(target)]
                     except IndexError:
                         raise InvalidTargetError('The key "{}" is no valid target.'.format(target))
-                if not grouped_indices:  # if no targets found
-                    break
                 if not isinstance(grouped_indices, int):
+                    if not grouped_indices:  # if no targets found
+                        break
                     print_highlight_regions(grouped_indices, target_keys)
                     read_state = ReadState.TARGET
                 else:
