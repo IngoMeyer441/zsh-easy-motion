@@ -220,7 +220,7 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
 
 
 def group_indices(indices, group_length):
-    # type: (Iterable[int], int) -> List[Any]
+    # type: (Iterable[int], int) -> Union[List[Any], int]
 
     def group(indices, group_length):
         # type: (Iterable[int], int) -> Union[List[Any], int]
@@ -254,10 +254,7 @@ def group_indices(indices, group_length):
         return grouped_indices
 
     grouped_indices = group(indices, group_length)
-    if isinstance(grouped_indices, int):
-        return [grouped_indices]
-    else:
-        return grouped_indices
+    return grouped_indices
 
 
 def print_highlight_regions(grouped_indices, target_keys):
