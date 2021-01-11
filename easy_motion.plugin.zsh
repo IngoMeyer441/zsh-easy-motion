@@ -33,7 +33,8 @@ function vi-easy-motion () {
 
     function _easy-motion-main {
         local is_in_viopp state line
-        local region_type region_pos region_key
+        local add_newline
+        local region_type region_pos region_pos_offset region_key
         local target_index mark
         declare -A region_type_to_highlight
 
@@ -52,9 +53,11 @@ function vi-easy-motion () {
         # But in zsh, the while loop is NOT executed in its own subshell.
         "${_EASY_MOTION_ROOT_DIR}/easy_motion.py" "${EASY_MOTION_TARGET_KEYS}" "${CURSOR}" "${is_in_viopp}" "${BUFFER}" </dev/tty 2>/dev/null | \
         while read -r line; do
+            add_newline=0
             case "${line}" in
                 highlight_start)
                     state="highlight"
+                    region_pos_offset=0
                     region_highlight=( "0 $#BUFFER ${EASY_MOTION_DIM}" )
                     BUFFER="${saved_buffer}"
                     continue
@@ -75,8 +78,16 @@ function vi-easy-motion () {
             case "${state}" in
                 highlight)
                     read -r region_type region_pos region_key <<< "${line}"
+                    (( region_pos += region_pos_offset ))
                     region_highlight+=( "${region_pos} $(( region_pos + 1 )) ${region_type_to_highlight[${region_type}]}" )
+                    if [[ "${BUFFER[$((region_pos + 1))]}" == $'\n' ]]; then
+                        add_newline=1
+                    fi
                     BUFFER[$((region_pos + 1))]="${region_key}"
+                    if (( add_newline )); then
+                        BUFFER="$(printf "%s\n%s" "${BUFFER:0:$(( region_pos + 1 ))}" "${BUFFER:$(( region_pos + 1 ))}")"
+                        (( ++region_pos_offset ))
+                    fi
                     ;;
                 jump)
                     read -r target_index mark _EASY_MOTION_EXTRA_MOTION <<< "${line}"

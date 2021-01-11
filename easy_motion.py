@@ -25,6 +25,7 @@ try:
         AnyStr,
         Callable,
         Dict,
+        Generator,
         IO,
         Iterable,
         Iterator,
@@ -105,6 +106,12 @@ class ReadState(object):
     MOTION_ARGUMENT = 1
     TARGET = 2
     HIGHLIGHT = 3
+
+
+class JumpTarget(object):
+    DIRECT = 0
+    GROUP = 1
+    PREVIEW = 2
 
 
 def str2bool(bool_text):
@@ -263,8 +270,8 @@ def group_indices(indices, group_length):
     return grouped_indices
 
 
-def print_highlight_regions(grouped_indices, target_keys):
-    # type: (Iterable[Any], str) -> None
+def generate_jump_targets(grouped_indices, target_keys):
+    # type: (Iterable[Any], str) -> Generator[Tuple[int, int, str], None, None]
     def find_leaves(group_or_index):
         # type: (Union[Iterable[Any], int]) -> Iterator[int]
         if isinstance(group_or_index, int):
@@ -274,18 +281,29 @@ def print_highlight_regions(grouped_indices, target_keys):
                 for leave in find_leaves(sub_group_or_index):
                     yield leave
 
-    print("highlight_start")
-    sys.stdout.flush()
     for target_key, group_or_index in zip(target_keys, grouped_indices):
         if isinstance(group_or_index, int):
-            print("s {:d} {}".format(group_or_index, target_key))
-            sys.stdout.flush()
+            yield (JumpTarget.DIRECT, group_or_index, target_key)
         else:
             for preview_key, sub_group_or_index in zip(target_keys, group_or_index):
                 for leave in find_leaves(sub_group_or_index):
-                    print("p1 {:d} {}".format(leave, target_key))
-                    print("p2 {:d} {}".format(leave + 1, preview_key))
-                    sys.stdout.flush()
+                    yield (JumpTarget.GROUP, leave, target_key)
+                    yield (JumpTarget.PREVIEW, leave + 1, preview_key)
+
+
+def print_highlight_regions(grouped_indices, target_keys):
+    # type: (Iterable[Any], str) -> None
+    target_type_to_code = {
+        JumpTarget.DIRECT: "s",
+        JumpTarget.GROUP: "p1",
+        JumpTarget.PREVIEW: "p2",
+    }
+    jump_targets = sorted(generate_jump_targets(grouped_indices, target_keys), key=lambda x: x[1])
+    print("highlight_start")
+    sys.stdout.flush()
+    for target_type, text_pos, target_key in jump_targets:
+        print("{} {:d} {}".format(target_type_to_code[target_type], text_pos, target_key))
+        sys.stdout.flush()
     print("highlight_end")
     sys.stdout.flush()
 
