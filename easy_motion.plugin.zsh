@@ -63,6 +63,10 @@ function vi-easy-motion () {
                     continue
                     ;;
                 highlight_end)
+                    # Update the dimmed text area if newline characters were added to the `BUFFER`
+                    if (( region_pos_offset > 0 )); then
+                        region_highlight[1]="0 $#BUFFER ${EASY_MOTION_DIM}"
+                    fi
                     state="none"
                     # Force a redisplay of the command line
                     zle -R
