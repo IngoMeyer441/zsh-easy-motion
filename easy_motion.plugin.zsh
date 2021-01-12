@@ -11,9 +11,11 @@ _EASY_MOTION_EXTRA_MOTION=""
 
 function vi-easy-motion () {
     local saved_buffer
+    local saved_cursor
     local saved_predisplay
     local saved_postdisplay
     local -a saved_region_highlight
+    local jumped
     local ret
 
     function _easy-motion-setup-variables {
@@ -26,6 +28,7 @@ function vi-easy-motion () {
 
     function _easy-motion-save-state {
         saved_buffer="${BUFFER}"
+        saved_cursor="${CURSOR}"
         saved_predisplay="${PREDISPLAY}"
         saved_postdisplay="${POSTDISPLAY}"
         saved_region_highlight=("${region_highlight[@]}")
@@ -47,6 +50,7 @@ function vi-easy-motion () {
         PREDISPLAY=""
         POSTDISPLAY=""
 
+        jumped=0
         is_in_viopp="$(( MARK < 0 ))"
         state="none"
         # In bash, "command | while ..." would not work because while runs in a subshell and variables cannot be modified.
@@ -60,6 +64,8 @@ function vi-easy-motion () {
                     region_pos_offset=0
                     region_highlight=( "0 $#BUFFER ${EASY_MOTION_DIM}" )
                     BUFFER="${saved_buffer}"
+                    # Restore the cursor position on every new highlighting round
+                    CURSOR="${saved_cursor}"
                     continue
                     ;;
                 highlight_end)
@@ -90,6 +96,9 @@ function vi-easy-motion () {
                     BUFFER[$((region_pos + 1))]="${region_key}"
                     if (( add_newline )); then
                         BUFFER="$(printf "%s\n%s" "${BUFFER:0:$(( region_pos + 1 ))}" "${BUFFER:$(( region_pos + 1 ))}")"
+                        if (( region_pos <= CURSOR )); then
+                            (( ++CURSOR ))
+                        fi
                         (( ++region_pos_offset ))
                     fi
                     ;;
@@ -101,6 +110,7 @@ function vi-easy-motion () {
                     if [[ -n "${mark}" ]]; then
                         MARK="${mark}"
                     fi
+                    jumped=1
                     state="none"
                     ;;
             esac
@@ -111,6 +121,9 @@ function vi-easy-motion () {
 
     function _easy-motion-restore-state {
         BUFFER="${saved_buffer}"
+        if ! (( jumped )); then
+            CURSOR="${saved_cursor}"
+        fi
         PREDISPLAY="${saved_predisplay}"
         POSTDISPLAY="${saved_postdisplay}"
         region_highlight=("${saved_region_highlight[@]}")
