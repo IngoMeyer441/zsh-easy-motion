@@ -16,7 +16,7 @@ PY2 = sys.version_info.major < 3  # is needed for correct mypy checking
 if PY2:
     from itertools import izip_longest as zip_longest
 else:
-    from itertools import zip_longest
+    from itertools import zip_longest, chain
 
 try:
     from typing import (  # noqa: F401  # pylint: disable=unused-import
@@ -88,6 +88,8 @@ class MissingVioppFlagError(Exception):
 class InvalidVioppFlagError(Exception):
     pass
 
+class MissingSmartCaseError(Exception):
+    pass
 
 class MissingTextError(Exception):
     pass
@@ -124,7 +126,7 @@ def str2bool(bool_text):
 
 
 def parse_arguments():
-    # type: () -> Tuple[int, bool, str, str]
+    # type: () -> Tuple[int, bool, str, str, bool]
     if PY2:
         argv = [arg.decode("utf-8") for arg in sys.argv]
     else:
@@ -150,11 +152,17 @@ def parse_arguments():
         is_in_viopp = str2bool(argv.pop(0))
     except ValueError:
         raise InvalidVioppFlagError('The viopp flag "{}" is not a valid boolean flag.'.format(argv[0]))
+    if not argv:
+      raise MissingSmartCaseError('No smart_case flag given.')
+    else:
+      smart_case = str2bool(argv.pop(0))
+
     # Extract text
     if not argv:
         raise MissingTextError("No text given.")
     text = " ".join(argv)
-    return cursor_position, is_in_viopp, target_keys, text
+
+    return cursor_position, is_in_viopp, target_keys, text, smart_case
 
 
 def find_first_line_end(cursor_position, text):
@@ -349,8 +357,8 @@ def print_jump_target(found_index, mark=None, extra_motion=None):
     sys.stdout.flush()
 
 
-def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
-    # type: (int, bool, str, str) -> None
+def handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_case):
+    # type: (int, bool, str, str, bool) -> None
     fd = sys.stdin.fileno()
 
     def setup_terminal():
@@ -401,7 +409,10 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
             elif read_state == ReadState.HIGHLIGHT:
                 assert motion is not None
                 if grouped_indices is None:
-                    indices = motion_to_indices(cursor_position, text, motion, motion_argument)
+                    if not PY2 and smart_case and motion_argument is not None and motion_argument.islower():
+                      indices = chain(motion_to_indices(cursor_position, text, motion, motion_argument), motion_to_indices(cursor_position, text, motion, motion_argument.upper()))
+                    else:
+                      indices = motion_to_indices(cursor_position, text, motion, motion_argument)
                     grouped_indices = group_indices(indices, len(target_keys))
                 else:
                     try:
@@ -428,8 +439,8 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
 def main():
     # type: () -> None
     try:
-        cursor_position, is_in_viopp, target_keys, text = parse_arguments()
-        handle_user_input(cursor_position, is_in_viopp, target_keys, text)
+        cursor_position, is_in_viopp, target_keys, text, smart_case = parse_arguments()
+        handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_case)
     except (
         MissingTargetKeysError,
         MissingCursorPositionError,
@@ -439,6 +450,7 @@ def main():
         MissingTextError,
         InvalidMotionError,
         InvalidTargetError,
+        MissingSmartCaseError,
     ) as e:
         print(e, file=sys.stderr)
         sys.exit(1)
