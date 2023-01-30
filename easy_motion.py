@@ -14,9 +14,9 @@ import termios
 PY2 = sys.version_info.major < 3  # is needed for correct mypy checking
 
 if PY2:
-    from itertools import izip_longest as zip_longest, chain
+    from itertools import izip_longest as zip_longest
 else:
-    from itertools import zip_longest, chain
+    from itertools import zip_longest
 
 try:
     from typing import (  # noqa: F401  # pylint: disable=unused-import
@@ -204,13 +204,13 @@ def adjust_text(cursor_position, text, is_forward_motion, motion):
     return text, indices_offset
 
 
-def motion_to_indices(cursor_position, text, motion, motion_argument):
-    # type: (int, str, str, Optional[str]) -> Iterable[int]
+def motion_to_indices(cursor_position, text, motion, motion_argument, ignore_case = False):
+    # type: (int, str, str, Optional[str], bool) -> Iterable[int]
     indices_offset = 0
     if motion in FORWARD_MOTIONS and motion in BACKWARD_MOTIONS:
         # Split the motion into the forward and backward motion and handle these recursively
-        forward_motion_indices = motion_to_indices(cursor_position, text, motion + ">", motion_argument)
-        backward_motion_indices = motion_to_indices(cursor_position, text, motion + "<", motion_argument)
+        forward_motion_indices = motion_to_indices(cursor_position, text, motion + ">", motion_argument, ignore_case)
+        backward_motion_indices = motion_to_indices(cursor_position, text, motion + "<", motion_argument, ignore_case)
         # Create a generator which yields the indices round-robin
         indices = (
             index
@@ -223,10 +223,11 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         if motion.endswith(">") or motion.endswith("<"):
             motion = motion[:-1]
         text, indices_offset = adjust_text(cursor_position, text, is_forward_motion, motion)
+        flags = re.MULTILINE if not ignore_case else re.MULTILINE | re.IGNORECASE
         if motion_argument is None:
-            regex = re.compile(MOTION_TO_REGEX[motion], flags=re.MULTILINE)
+            regex = re.compile(MOTION_TO_REGEX[motion], flags=flags)
         else:
-            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)), flags=re.MULTILINE)
+            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)), flags=flags)
         matches = regex.finditer(text)
         if not is_forward_motion:
             matches = reversed(list(matches))
@@ -410,7 +411,7 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_cas
                 assert motion is not None
                 if grouped_indices is None:
                     if smart_case and motion_argument is not None and motion_argument.islower():
-                      indices = chain(motion_to_indices(cursor_position, text, motion, motion_argument), motion_to_indices(cursor_position, text, motion, motion_argument.upper()))
+                      indices = motion_to_indices(cursor_position, text, motion, motion_argument, True)
                     else:
                       indices = motion_to_indices(cursor_position, text, motion, motion_argument)
                     grouped_indices = group_indices(indices, len(target_keys))
