@@ -14,7 +14,7 @@ import termios
 PY2 = sys.version_info.major < 3  # is needed for correct mypy checking
 
 if PY2:
-    from itertools import izip_longest as zip_longest
+    from itertools import izip_longest as zip_longest, chain
 else:
     from itertools import zip_longest, chain
 
@@ -409,7 +409,7 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_cas
             elif read_state == ReadState.HIGHLIGHT:
                 assert motion is not None
                 if grouped_indices is None:
-                    if not PY2 and smart_case and motion_argument is not None and motion_argument.islower():
+                    if smart_case and motion_argument is not None and motion_argument.islower():
                       indices = chain(motion_to_indices(cursor_position, text, motion, motion_argument), motion_to_indices(cursor_position, text, motion, motion_argument.upper()))
                     else:
                       indices = motion_to_indices(cursor_position, text, motion, motion_argument)
