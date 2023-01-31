@@ -88,6 +88,8 @@ class MissingVioppFlagError(Exception):
 class InvalidVioppFlagError(Exception):
     pass
 
+class MissingSmartCaseError(Exception):
+    pass
 
 class MissingTextError(Exception):
     pass
@@ -124,7 +126,7 @@ def str2bool(bool_text):
 
 
 def parse_arguments():
-    # type: () -> Tuple[int, bool, str, str]
+    # type: () -> Tuple[int, bool, str, str, bool]
     if PY2:
         argv = [arg.decode("utf-8") for arg in sys.argv]
     else:
@@ -150,11 +152,17 @@ def parse_arguments():
         is_in_viopp = str2bool(argv.pop(0))
     except ValueError:
         raise InvalidVioppFlagError('The viopp flag "{}" is not a valid boolean flag.'.format(argv[0]))
+    if not argv:
+      raise MissingSmartCaseError('No smart_case flag given.')
+    else:
+      smart_case = str2bool(argv.pop(0))
+
     # Extract text
     if not argv:
         raise MissingTextError("No text given.")
     text = " ".join(argv)
-    return cursor_position, is_in_viopp, target_keys, text
+
+    return cursor_position, is_in_viopp, target_keys, text, smart_case
 
 
 def find_first_line_end(cursor_position, text):
@@ -196,13 +204,13 @@ def adjust_text(cursor_position, text, is_forward_motion, motion):
     return text, indices_offset
 
 
-def motion_to_indices(cursor_position, text, motion, motion_argument):
-    # type: (int, str, str, Optional[str]) -> Iterable[int]
+def motion_to_indices(cursor_position, text, motion, motion_argument, ignore_case = False):
+    # type: (int, str, str, Optional[str], bool) -> Iterable[int]
     indices_offset = 0
     if motion in FORWARD_MOTIONS and motion in BACKWARD_MOTIONS:
         # Split the motion into the forward and backward motion and handle these recursively
-        forward_motion_indices = motion_to_indices(cursor_position, text, motion + ">", motion_argument)
-        backward_motion_indices = motion_to_indices(cursor_position, text, motion + "<", motion_argument)
+        forward_motion_indices = motion_to_indices(cursor_position, text, motion + ">", motion_argument, ignore_case)
+        backward_motion_indices = motion_to_indices(cursor_position, text, motion + "<", motion_argument, ignore_case)
         # Create a generator which yields the indices round-robin
         indices = (
             index
@@ -215,10 +223,11 @@ def motion_to_indices(cursor_position, text, motion, motion_argument):
         if motion.endswith(">") or motion.endswith("<"):
             motion = motion[:-1]
         text, indices_offset = adjust_text(cursor_position, text, is_forward_motion, motion)
+        flags = re.MULTILINE if not ignore_case else re.MULTILINE | re.IGNORECASE
         if motion_argument is None:
-            regex = re.compile(MOTION_TO_REGEX[motion], flags=re.MULTILINE)
+            regex = re.compile(MOTION_TO_REGEX[motion], flags=flags)
         else:
-            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)), flags=re.MULTILINE)
+            regex = re.compile(MOTION_TO_REGEX[motion].format(re.escape(motion_argument)), flags=flags)
         matches = regex.finditer(text)
         if not is_forward_motion:
             matches = reversed(list(matches))
@@ -349,8 +358,8 @@ def print_jump_target(found_index, mark=None, extra_motion=None):
     sys.stdout.flush()
 
 
-def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
-    # type: (int, bool, str, str) -> None
+def handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_case):
+    # type: (int, bool, str, str, bool) -> None
     fd = sys.stdin.fileno()
 
     def setup_terminal():
@@ -401,7 +410,10 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
             elif read_state == ReadState.HIGHLIGHT:
                 assert motion is not None
                 if grouped_indices is None:
-                    indices = motion_to_indices(cursor_position, text, motion, motion_argument)
+                    if smart_case and motion_argument is not None and motion_argument.islower():
+                      indices = motion_to_indices(cursor_position, text, motion, motion_argument, True)
+                    else:
+                      indices = motion_to_indices(cursor_position, text, motion, motion_argument)
                     grouped_indices = group_indices(indices, len(target_keys))
                 else:
                     try:
@@ -428,8 +440,8 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text):
 def main():
     # type: () -> None
     try:
-        cursor_position, is_in_viopp, target_keys, text = parse_arguments()
-        handle_user_input(cursor_position, is_in_viopp, target_keys, text)
+        cursor_position, is_in_viopp, target_keys, text, smart_case = parse_arguments()
+        handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_case)
     except (
         MissingTargetKeysError,
         MissingCursorPositionError,
@@ -439,6 +451,7 @@ def main():
         MissingTextError,
         InvalidMotionError,
         InvalidTargetError,
+        MissingSmartCaseError,
     ) as e:
         print(e, file=sys.stderr)
         sys.exit(1)

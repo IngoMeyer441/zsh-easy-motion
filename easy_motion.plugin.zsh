@@ -4,6 +4,7 @@ _EASY_MOTION_HIGHLIGHT_DEFAULT="fg=196,bold"
 _EASY_MOTION_HIGHLIGHT_2_FIRST_DEFAULT="fg=11,bold"
 _EASY_MOTION_HIGHLIGHT_2_SECOND_DEFAULT="fg=3,bold"
 _EASY_MOTION_TARGET_KEYS_DEFAULT="asdghklqwertyuiopzxcvbnmfj;"
+_EASY_MOTION_SMART_CASE_DEFAULT="false"
 
 _EASY_MOTION_ROOT_DIR="${0:h}"
 
@@ -24,6 +25,7 @@ function vi-easy-motion () {
         : "${EASY_MOTION_HIGHLIGHT_2_FIRST:=${_EASY_MOTION_HIGHLIGHT_2_FIRST_DEFAULT}}"
         : "${EASY_MOTION_HIGHLIGHT_2_SECOND:=${_EASY_MOTION_HIGHLIGHT_2_SECOND_DEFAULT}}"
         : "${EASY_MOTION_TARGET_KEYS:=${_EASY_MOTION_TARGET_KEYS_DEFAULT}}"
+        : "${EASY_MOTION_SMART_CASE}:=${_EASY_MOTION_SMART_CASE_DEFAULT}"
     }
 
     function _easy-motion-save-state {
@@ -55,7 +57,7 @@ function vi-easy-motion () {
         state="none"
         # In bash, "command | while ..." would not work because while runs in a subshell and variables cannot be modified.
         # But in zsh, the while loop is NOT executed in its own subshell.
-        "${_EASY_MOTION_ROOT_DIR}/easy_motion.py" "${EASY_MOTION_TARGET_KEYS}" "${CURSOR}" "${is_in_viopp}" "${BUFFER}" </dev/tty 2>/dev/null | \
+        "${_EASY_MOTION_ROOT_DIR}/easy_motion.py" "${EASY_MOTION_TARGET_KEYS}" "${CURSOR}" "${is_in_viopp}" "${EASY_MOTION_SMART_CASE}" "${BUFFER}" </dev/tty 2>/dev/null | \
         while read -r line; do
             add_newline=0
             case "${line}" in
