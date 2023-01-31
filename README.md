@@ -9,7 +9,8 @@
 This plugin brings Vim's [easy-motion](https://github.com/easymotion/vim-easymotion) plugin to zsh. It is inspired by
 [zce.zsh](https://github.com/hchbaw/zce.zsh). Unfortunately, zce.zsh only supports the seek operation of easy-motion so
 I have started my own implementation that adds much more easy-motion movements. Currently, the following motions are
-supported: `b`, `B`, `w`, `W`, `e`, `E`, `ge`, `gE`, `j`, `J`, `k`, `K` `f`, `F`, `t`, `T`, `c` (camelCase).
+supported: `b`, `B`, `w`, `W`, `e`, `E`, `ge`, `gE`, `j`, `J`, `k`, `K` `f`, `F`, `t`, `T`, `s` (combination of `f` and
+`F`), `c` (camelCase).
 
 ## Requirements
 
@@ -98,6 +99,11 @@ EASY_MOTION_HIGHLIGHT_2_SECOND="fg=#b98300,bold"
 Visit the [zsh docs](http://zsh.sourceforge.net/Doc/Release/Zsh-Line-Editor.html#Character-Highlighting) for a
 description of possible highlights and http://www.calmar.ws/vim/256-xterm-24bit-rgb-color-chart.html for a listing
 of possible color codes.
+
+### Behavior
+
+Set `EASY_MOTION_SMART_CASE=true` to enable smart case matching for *forward* and *till* motions (`f`, `F`, `t`, `T` and
+`s`). In this mode, the motion argument `a` matches both `a` and `A` but `A` only matches `A`.
 
 ## Other plugins
 
