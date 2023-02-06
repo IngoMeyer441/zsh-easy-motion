@@ -88,8 +88,10 @@ class MissingVioppFlagError(Exception):
 class InvalidVioppFlagError(Exception):
     pass
 
+
 class MissingSmartCaseError(Exception):
     pass
+
 
 class MissingTextError(Exception):
     pass
@@ -153,9 +155,8 @@ def parse_arguments():
     except ValueError:
         raise InvalidVioppFlagError('The viopp flag "{}" is not a valid boolean flag.'.format(argv[0]))
     if not argv:
-      raise MissingSmartCaseError('No smart_case flag given.')
-    else:
-      smart_case = str2bool(argv.pop(0))
+        raise MissingSmartCaseError("No smart_case flag given.")
+    smart_case = str2bool(argv.pop(0))
 
     # Extract text
     if not argv:
@@ -204,7 +205,7 @@ def adjust_text(cursor_position, text, is_forward_motion, motion):
     return text, indices_offset
 
 
-def motion_to_indices(cursor_position, text, motion, motion_argument, ignore_case = False):
+def motion_to_indices(cursor_position, text, motion, motion_argument, ignore_case=False):
     # type: (int, str, str, Optional[str], bool) -> Iterable[int]
     indices_offset = 0
     if motion in FORWARD_MOTIONS and motion in BACKWARD_MOTIONS:
@@ -411,9 +412,9 @@ def handle_user_input(cursor_position, is_in_viopp, target_keys, text, smart_cas
                 assert motion is not None
                 if grouped_indices is None:
                     if smart_case and motion_argument is not None and motion_argument.islower():
-                      indices = motion_to_indices(cursor_position, text, motion, motion_argument, True)
+                        indices = motion_to_indices(cursor_position, text, motion, motion_argument, True)
                     else:
-                      indices = motion_to_indices(cursor_position, text, motion, motion_argument)
+                        indices = motion_to_indices(cursor_position, text, motion, motion_argument)
                     grouped_indices = group_indices(indices, len(target_keys))
                 else:
                     try:
